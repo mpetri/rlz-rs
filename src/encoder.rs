@@ -46,7 +46,7 @@ impl EncoderBuilder {
     }
 
     pub fn literal_threshold(mut self, threshold: usize) -> EncoderBuilder {
-        self.compression_config.literal_trehsold = threshold;
+        self.compression_config.literal_threshold = threshold;
         self
     }
 
