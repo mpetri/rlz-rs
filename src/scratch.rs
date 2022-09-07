@@ -10,6 +10,14 @@ pub(crate) struct Scratch {
     pub(crate) lens: Vec<u32>,
 }
 
+impl Scratch {
+    pub fn clear(&mut self) {
+        self.literals.clear();
+        self.offsets.clear();
+        self.lens.clear();
+    }
+}
+
 impl Default for Scratch {
     fn default() -> Scratch {
         Scratch {

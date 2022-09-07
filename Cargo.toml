@@ -5,7 +5,12 @@ edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
+[dev-dependencies]
+proptest = "1.0.0"
+
 [dependencies]
+bytemuck = "1.12.1"
 cdivsufsort = "2.0.0"
 parking_lot = "0.12.1"
 thiserror = "1.0.32"
+zstd = "0.11.2"

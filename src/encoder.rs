@@ -17,16 +17,9 @@ impl Encoder {
 
     pub fn encode(&self, input: &[u8], output: impl std::io::Write) -> Result<usize, RlzError> {
         let mut scratch = self.scratch.get();
+        scratch.clear();
         for factor in self.index.factorize(input) {
-            match factor {
-                FactorType::Literal(factor_literals) => {
-                    scratch.literals.extend_from_slice(factor_literals)
-                }
-                FactorType::Copy { offset, len } => {
-                    scratch.offsets.push(offset);
-                    scratch.lens.push(len);
-                }
-            }
+            self.coder.store_factor(factor, &mut scratch);
         }
         let encode_output = self.coder.encode(output, &scratch);
         self.scratch.release(scratch);
@@ -56,7 +49,7 @@ impl EncoderBuilder {
     }
 
     pub fn build(self, dict: dict::Dictionary) -> Encoder {
-        let index = index::Index::from_dict(dict, &self.compression_config);
+        let index = index::Index::from_dict(dict.to_vec(), &self.compression_config);
         Encoder {
             index,
             coder: self.compression_config.factor_compression,

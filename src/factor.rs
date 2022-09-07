@@ -22,6 +22,8 @@ impl Default for LocalSearch {
     }
 }
 
+#[derive(Clone, PartialEq, Eq, Debug)]
+
 pub(crate) enum FactorType<'input> {
     Literal(&'input [u8]),
     Copy { offset: u32, len: u32 },
