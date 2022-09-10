@@ -19,9 +19,18 @@ impl Encoder {
         let mut scratch = self.scratch.get();
         scratch.clear();
         for factor in self.index.factorize(input) {
-            self.coder.store_factor(factor, &mut scratch);
+            match factor {
+                FactorType::Literal(literal) => {
+                    scratch.lens.push(literal.len() as u32);
+                    scratch.literals.copy_from_slice(literal);
+                }
+                FactorType::Copy { offset, len } => {
+                    scratch.offsets.push(offset);
+                    scratch.lens.push(len);
+                }
+            }
         }
-        let encode_output = self.coder.encode(output, &scratch);
+        let encode_output = self.coder.encode(output, &mut scratch);
         self.scratch.release(scratch);
         encode_output
     }
@@ -38,7 +47,7 @@ impl EncoderBuilder {
         self
     }
 
-    pub fn literal_threshold(mut self, threshold: usize) -> EncoderBuilder {
+    pub fn literal_threshold(mut self, threshold: u32) -> EncoderBuilder {
         self.compression_config.literal_threshold = threshold;
         self
     }

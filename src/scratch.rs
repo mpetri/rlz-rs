@@ -5,6 +5,7 @@ const DEFAULT_CAPACITY: usize = 16384;
 
 #[derive(Clone, Debug)]
 pub(crate) struct Scratch {
+    pub(crate) encoded: Vec<u8>,
     pub(crate) literals: Vec<u8>,
     pub(crate) offsets: Vec<u32>,
     pub(crate) lens: Vec<u32>,
@@ -12,6 +13,7 @@ pub(crate) struct Scratch {
 
 impl Scratch {
     pub fn clear(&mut self) {
+        self.encoded.clear();
         self.literals.clear();
         self.offsets.clear();
         self.lens.clear();
@@ -21,6 +23,7 @@ impl Scratch {
 impl Default for Scratch {
     fn default() -> Scratch {
         Scratch {
+            encoded: Vec::with_capacity(DEFAULT_CAPACITY),
             literals: Vec::with_capacity(DEFAULT_CAPACITY),
             offsets: Vec::with_capacity(DEFAULT_CAPACITY),
             lens: Vec::with_capacity(DEFAULT_CAPACITY),

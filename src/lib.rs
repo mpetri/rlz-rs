@@ -7,6 +7,7 @@ mod error;
 mod factor;
 mod index;
 mod scratch;
+mod vbyte;
 
 pub use config::Compression;
 pub use decoder::Decoder;
