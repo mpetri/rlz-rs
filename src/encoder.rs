@@ -1,3 +1,5 @@
+use bytes::{Buf, BufMut};
+
 use crate::{
     coder, config, dict,
     factor::{self, FactorType},
@@ -15,20 +17,11 @@ impl Encoder {
         EncoderBuilder::default()
     }
 
-    pub fn encode(&self, input: &[u8], output: impl std::io::Write) -> Result<usize, RlzError> {
+    pub fn encode(&self, input: impl Buf, output: impl BufMut) -> Result<usize, RlzError> {
         let mut scratch = self.scratch.get();
         scratch.clear();
         for factor in self.index.factorize(input) {
-            match factor {
-                FactorType::Literal(literal) => {
-                    scratch.lens.push(literal.len() as u32);
-                    scratch.literals.copy_from_slice(literal);
-                }
-                FactorType::Copy { offset, len } => {
-                    scratch.offsets.push(offset);
-                    scratch.lens.push(len);
-                }
-            }
+            self.coder.store_factor(&mut scratch, factor);
         }
         let encode_output = self.coder.encode(output, &mut scratch);
         self.scratch.release(scratch);

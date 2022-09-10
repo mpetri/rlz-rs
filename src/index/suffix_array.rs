@@ -1,9 +1,6 @@
 // mostly taken from the suffix_array crate but with modifications
 
-use std::{
-    ops::{Deref, Range, RangeInclusive},
-    slice::from_raw_parts_mut,
-};
+use std::{ops::Deref, slice::from_raw_parts_mut};
 
 use cdivsufsort::sort_in_place as divsufsort;
 

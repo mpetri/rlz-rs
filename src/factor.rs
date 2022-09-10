@@ -1,3 +1,5 @@
+use bytes::Bytes;
+
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
 pub enum LocalSearch {
     None,
@@ -12,16 +14,16 @@ impl Default for LocalSearch {
 
 #[derive(Clone, PartialEq, Eq, Debug)]
 
-pub(crate) enum FactorType<'input> {
-    Literal(&'input [u8]),
+pub(crate) enum FactorType {
+    Literal(Bytes),
     Copy { offset: u32, len: u32 },
 }
 
-impl<'input> FactorType<'_> {
+impl FactorType {
     pub(crate) fn len(&self) -> usize {
         match &self {
             FactorType::Literal(lit) => lit.len(),
-            FactorType::Copy { offset, len } => *len as usize,
+            FactorType::Copy { offset: _, len } => *len as usize,
         }
     }
 }

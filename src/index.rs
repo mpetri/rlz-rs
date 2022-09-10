@@ -2,6 +2,7 @@ use crate::factor::FactorType;
 use crate::{config, dict};
 mod suffix_array;
 
+use bytes::Buf;
 use suffix_array::SuffixArray;
 
 use self::suffix_array::{SuffixArrayMatch, SuffixArrayRangeInclusive};
@@ -27,13 +28,10 @@ impl Index {
         }
     }
 
-    pub(crate) fn factorize<'encoder, 'input>(
-        &'encoder self,
-        input: &'input [u8],
-    ) -> FactorIterator<'encoder, 'input> {
+    pub(crate) fn factorize(&'_ self, mut input: impl Buf) -> FactorIterator<'_> {
         FactorIterator {
             index: self,
-            remaining_input: input,
+            remaining_input: input.copy_to_bytes(input.remaining()),
             config: &self.config,
         }
     }
@@ -94,28 +92,28 @@ impl Index {
     }
 }
 
-pub(crate) struct FactorIterator<'encoder, 'input> {
+pub(crate) struct FactorIterator<'encoder> {
     index: &'encoder Index,
-    remaining_input: &'input [u8],
+    remaining_input: bytes::Bytes,
     config: &'encoder config::Compression,
 }
 
-impl<'encoder, 'input> Iterator for FactorIterator<'encoder, 'input> {
-    type Item = FactorType<'input>;
+impl<'encoder> Iterator for FactorIterator<'encoder> {
+    type Item = FactorType;
 
     fn next(&mut self) -> Option<Self::Item> {
         if self.remaining_input.is_empty() {
             return None;
         }
-        let longest_match = self.index.find_longest_match(self.remaining_input);
+        let longest_match = self.index.find_longest_match(&self.remaining_input);
         let found_factor = match longest_match {
-            IndexSearchResult::NoMatch => FactorType::Literal(&self.remaining_input[0..1]),
+            IndexSearchResult::NoMatch => FactorType::Literal(self.remaining_input.slice(0..1)),
             IndexSearchResult::Match {
                 num_matched,
                 offset,
             } => {
                 if num_matched <= self.config.literal_threshold {
-                    FactorType::Literal(&self.remaining_input[0..num_matched as usize])
+                    FactorType::Literal(self.remaining_input.slice(0..num_matched as usize))
                 } else {
                     let num_matched = num_matched as u32;
                     FactorType::Copy {
@@ -127,7 +125,7 @@ impl<'encoder, 'input> Iterator for FactorIterator<'encoder, 'input> {
         };
 
         // advance text pointers
-        self.remaining_input = &self.remaining_input[found_factor.len()..];
+        self.remaining_input = self.remaining_input.slice(found_factor.len()..);
 
         Some(found_factor)
     }
@@ -153,9 +151,15 @@ mod tests {
         let first = factors.next();
         assert_eq!(first, Some(FactorType::Copy { offset: 0, len: 2 }));
         let second = factors.next();
-        assert_eq!(second, Some(FactorType::Literal(&[b'c'])));
+        assert_eq!(
+            second,
+            Some(FactorType::Literal(bytes::Bytes::from_static(&[b'c'])))
+        );
         let third = factors.next();
-        assert_eq!(third, Some(FactorType::Literal(&[b'$'])));
+        assert_eq!(
+            third,
+            Some(FactorType::Literal(bytes::Bytes::from_static(&[b'$'])))
+        );
         let forth = factors.next();
         assert_eq!(forth, Some(FactorType::Copy { offset: 1, len: 5 }));
         assert_eq!(factors.next(), None);

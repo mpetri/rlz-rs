@@ -1,138 +1,46 @@
-use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
-use std::{
-    io::{Read, Write},
-    mem,
-};
+use bytes::{BufMut, Bytes, BytesMut};
 
-use crate::{scratch::Scratch, RlzError};
+use crate::{factor::FactorType, scratch::Scratch, RlzError};
 
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
-pub enum Compressor {
-    Zlib(u32),
-    Zstd(i32),
-    Plain,
+pub struct ZstdCompressor {
+    level: i32,
 }
 
-impl Compressor {
-    pub fn compress(&self, mut output: &mut Vec<u8>, input: &[u8]) -> Result<usize, RlzError> {
-        let len_before = output.len();
+impl ZstdCompressor {
+    pub(crate) fn new(level: i32) -> Self {
+        Self { level }
+    }
+}
+
+impl ZstdCompressor {
+    pub fn compress(&self, output: &mut [u8], input: &[u8]) -> Result<usize, RlzError> {
+        let num_compressed_bytes = if !input.is_empty() {
+            zstd::bulk::compress_to_buffer(input, output, self.level)?
+        } else {
+            0
+        };
+        Ok(num_compressed_bytes)
+    }
+
+    pub fn decompress(&self, input: &[u8], output: &mut [u8]) -> Result<usize, RlzError> {
         if !input.is_empty() {
-            match self {
-                Compressor::Zlib(lvl) => {
-                    let mut e = flate2::write::ZlibEncoder::new(
-                        &mut output,
-                        flate2::Compression::new(*lvl),
-                    );
-                    e.write_all(input)?;
-                    e.finish()?;
-                }
-                Compressor::Zstd(lvl) => zstd::stream::copy_encode(input, &mut output, *lvl)?,
-                Compressor::Plain => {
-                    output.write_all(input)?;
-                }
-            }
+            let num_decompressed_bytes = zstd::bulk::decompress_to_buffer(input, output)?;
+            return Ok(num_decompressed_bytes);
         }
-        Ok(output.len() - len_before)
-    }
-
-    pub fn decompress(
-        &self,
-        mut input: impl std::io::Read,
-        output: &mut Vec<u8>,
-    ) -> Result<(), RlzError> {
-        match self {
-            Compressor::Zlib(_lvl) => {
-                let mut e = flate2::read::ZlibDecoder::new(input);
-                e.read_to_end(output)?;
-            }
-            Compressor::Zstd(_lvl) => zstd::stream::copy_decode(input, output)?,
-            Compressor::Plain => {
-                input.read_to_end(output)?;
-            }
-        }
-        Ok(())
-    }
-
-    pub fn decompress_u32(
-        &self,
-        mut input: impl std::io::Read,
-        output: &mut Vec<u32>,
-    ) -> Result<(), RlzError> {
-        let mut tmp = vec![0; out_len as usize * 4];
-        match self {
-            Compressor::Zlib(_lvl) => {
-                let mut e = flate2::read::ZlibDecoder::new(input);
-                e.read_to_end(&mut tmp)?;
-            }
-            Compressor::Zstd(_lvl) => zstd::stream::copy_decode(input, &mut tmp)?,
-            Compressor::Plain => {
-                input.read_exact(&mut tmp)?;
-            }
-        }
-        dbg!(tmp.len());
-
-        let mut tt = &tmp[..];
-        for _ in 0..out_len {
-            output.push(tt.read_u32::<byteorder::LittleEndian>()?);
-        }
-        Ok(())
-    }
-
-    pub fn compress_u32(&self, mut output: &mut Vec<u8>, input: &[u32]) -> Result<usize, RlzError> {
-        let len_before = output.len();
-        dbg!(input.len());
-
-        crate::vbyte::encode(&mut output, input.len() as u32)?;
-        let input_u8: &[u8] = bytemuck::cast_slice(input);
-        if !input.is_empty() {
-            match self {
-                Compressor::Zlib(lvl) => {
-                    let mut e = flate2::write::ZlibEncoder::new(
-                        &mut output,
-                        flate2::Compression::new(*lvl),
-                    );
-                    e.write_all(input_u8)?;
-                    e.finish()?;
-                }
-                Compressor::Zstd(lvl) => zstd::stream::copy_encode(input_u8, &mut output, *lvl)?,
-                Compressor::Plain => {
-                    output.write_all(input_u8)?;
-                }
-            }
-        }
-        Ok(output.len() - len_before)
+        Ok(0)
     }
 }
 
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub struct Coder {
-    literal_compressor: Compressor,
-    offset_compressor: Compressor,
-    len_compressor: Compressor,
+    compressor: ZstdCompressor,
 }
 
 impl Coder {
-    pub fn zlib(lvl: u32) -> Coder {
-        Coder {
-            literal_compressor: Compressor::Zlib(lvl),
-            offset_compressor: Compressor::Zlib(lvl),
-            len_compressor: Compressor::Zlib(lvl),
-        }
-    }
-
     pub fn zstd(lvl: i32) -> Coder {
         Coder {
-            literal_compressor: Compressor::Zstd(lvl),
-            offset_compressor: Compressor::Zstd(lvl),
-            len_compressor: Compressor::Zstd(lvl),
-        }
-    }
-
-    pub fn plain() -> Coder {
-        Coder {
-            literal_compressor: Compressor::Plain,
-            offset_compressor: Compressor::Plain,
-            len_compressor: Compressor::Plain,
+            compressor: ZstdCompressor::new(lvl),
         }
     }
 }
@@ -140,9 +48,7 @@ impl Coder {
 impl Default for Coder {
     fn default() -> Coder {
         Coder {
-            literal_compressor: Compressor::Zstd(6),
-            offset_compressor: Compressor::Zstd(6),
-            len_compressor: Compressor::Zstd(6),
+            compressor: ZstdCompressor::new(6),
         }
     }
 }
@@ -150,44 +56,74 @@ impl Default for Coder {
 impl Coder {
     pub(crate) fn encode(
         &self,
-        mut output: impl std::io::Write,
+        mut output: impl BufMut,
         scratch: &mut Scratch,
     ) -> Result<usize, RlzError> {
-        let literal_bytes = self
-            .literal_compressor
+        // (1) ensure we have enough space
+        let max_expected = scratch.literals.len() + scratch.offsets.len() + scratch.lens.len();
+        scratch.reserve_encoded(max_expected);
+
+        // (2) encode everything
+        let mut written_bytes = self
+            .compressor
             .compress(&mut scratch.encoded, &scratch.literals)?;
+        let literal_bytes = written_bytes;
         let offset_bytes = self
-            .offset_compressor
-            .compress_u32(&mut scratch.encoded, &scratch.offsets)?;
-        let lens_bytes = self
-            .len_compressor
-            .compress_u32(&mut scratch.encoded, &scratch.lens)?;
+            .compressor
+            .compress(&mut scratch.encoded[written_bytes..], &scratch.offsets)?;
+        written_bytes += offset_bytes;
+        written_bytes += self
+            .compressor
+            .compress(&mut scratch.encoded[written_bytes..], &scratch.lens)?;
 
-        crate::vbyte::encode(&mut output, literal_bytes as u32)?;
-        crate::vbyte::encode(&mut output, offset_bytes as u32)?;
-        crate::vbyte::encode(&mut output, lens_bytes as u32)?;
+        let mut encode_bytes = written_bytes;
+        encode_bytes += crate::vbyte::encode(&mut output, literal_bytes as u32);
+        encode_bytes += crate::vbyte::encode(&mut output, offset_bytes as u32);
 
-        std::io::copy(&mut &scratch.encoded[..], &mut output)?;
+        output.put_slice(&scratch.encoded[..written_bytes]);
 
-        Ok(literal_bytes + offset_bytes + lens_bytes)
+        Ok(encode_bytes)
     }
 
-    pub(crate) fn decode(
-        &self,
-        mut input: impl std::io::Read,
-        scratch: &mut Scratch,
-    ) -> Result<(), RlzError> {
-        let literal_bytes = crate::vbyte::decode(&mut input)?;
-        let offset_bytes = crate::vbyte::decode(&mut input)?;
-        let lens_bytes = crate::vbyte::decode(&mut input)?;
+    pub(crate) fn decode(&self, mut input: Bytes, scratch: &mut Scratch) -> Result<(), RlzError> {
+        let num_literal_bytes = crate::vbyte::decode(&mut input) as usize;
+        let num_offset_bytes = crate::vbyte::decode(&mut input) as usize;
 
-        self.literal_compressor
-            .decompress(&mut input, literal_bytes, &mut scratch.literals)?;
-        self.offset_compressor
-            .decompress_u32(&mut input, &mut scratch.offsets)?;
-        self.len_compressor
-            .decompress_u32(&mut input, &mut scratch.lens)?;
+        // (1) ensure we have enough space
+        scratch.reserve_output(input.len());
+
+        let literal_bytes = input.split_to(num_literal_bytes as usize);
+        let offset_bytes = input.split_to(num_offset_bytes as usize);
+        let len_bytes = input;
+
+        // perform the decoding
+        let decoded = self
+            .compressor
+            .decompress(&literal_bytes, &mut scratch.literals)?;
+        scratch.literals.truncate(decoded);
+
+        let decoded = self
+            .compressor
+            .decompress(&offset_bytes, &mut scratch.offsets)?;
+        scratch.offsets.truncate(decoded);
+
+        let decoded = self.compressor.decompress(&len_bytes, &mut scratch.lens)?;
+        scratch.lens.truncate(decoded);
+
         Ok(())
+    }
+
+    pub(crate) fn store_factor(&self, scratch: &mut Scratch, factor: FactorType) {
+        match factor {
+            FactorType::Literal(literal) => {
+                scratch.lens.put_u32(literal.len() as u32);
+                scratch.literals.copy_from_slice(&literal);
+            }
+            FactorType::Copy { offset, len } => {
+                scratch.offsets.put_u32(offset);
+                scratch.lens.put_u32(len);
+            }
+        }
     }
 }
 
@@ -198,12 +134,12 @@ mod tests {
 
     proptest! {
         #[test]
-        fn correct_output_len(literals: Vec<u8>,offsets: Vec<u32>,lens: Vec<u32>) {
+        fn correct_output_len(literals: Vec<u8>,offsets: Vec<u8>,lens: Vec<u8>) {
             let mut scratch =  Scratch {
-                encoded: Vec::with_capacity(1234),
-                literals,
-                offsets,
-                lens,
+                encoded: BytesMut::zeroed(1024 * 1024),
+                literals: BytesMut::from(&literals[..]),
+                offsets: BytesMut::from(&offsets[..]),
+                lens: BytesMut::from(&lens[..]),
             };
             let mut output = Vec::new();
             let coder = Coder::default();
@@ -212,42 +148,14 @@ mod tests {
         }
     }
 
-    #[test]
-    fn debug() {
-        let mut scratch = Scratch {
-            encoded: Vec::with_capacity(1234),
-            literals: Vec::new(),
-            offsets: vec![0],
-            lens: Vec::new(),
-        };
-        let mut output = Vec::new();
-        let coder = Coder::plain();
-        let encoded_len = coder.encode(&mut output, &mut scratch).unwrap();
-        assert_eq!(encoded_len, output.len());
-        dbg!(encoded_len);
-
-        let mut scratch2 = Scratch {
-            encoded: Vec::with_capacity(1234),
-            literals: Vec::with_capacity(1234),
-            offsets: Vec::with_capacity(1234),
-            lens: Vec::with_capacity(1234),
-        };
-
-        coder.decode(&output[..], &mut scratch2).unwrap();
-
-        assert_eq!(scratch.literals, scratch2.literals);
-        assert_eq!(scratch.offsets, scratch2.offsets);
-        assert_eq!(scratch.lens, scratch2.lens);
-    }
-
     proptest! {
         #[test]
-        fn recover(literals: Vec<u8>,offsets: Vec<u32>,lens: Vec<u32>) {
+        fn recover(literals: Vec<u8>,offsets: Vec<u8>,lens: Vec<u8>) {
             let mut scratch =  Scratch {
-                encoded: Vec::with_capacity(1234),
-                literals,
-                offsets,
-                lens,
+                encoded: BytesMut::with_capacity(1024 * 1024),
+                literals: BytesMut::from(&literals[..]),
+                offsets: BytesMut::from(&offsets[..]),
+                lens: BytesMut::from(&lens[..]),
             };
             let mut output = Vec::new();
             let coder = Coder::zstd(3);
@@ -256,42 +164,13 @@ mod tests {
             dbg!(encoded_len);
 
             let mut scratch2 =  Scratch {
-                encoded: Vec::with_capacity(1234),
-                literals: Vec::with_capacity(1234),
-                offsets: Vec::with_capacity(1234),
-                lens: Vec::with_capacity(1234),
+                encoded: BytesMut::with_capacity(1024 * 1024),
+                literals: BytesMut::with_capacity(1024 * 1024),
+                offsets: BytesMut::with_capacity(1024 * 1024),
+                lens: BytesMut::with_capacity(1024 * 1024),
             };
 
-            coder.decode(&output[..],&mut scratch2)?;
-
-            assert_eq!(scratch.literals,scratch2.literals);
-            assert_eq!(scratch.offsets,scratch2.offsets);
-            assert_eq!(scratch.lens,scratch2.lens);
-        }
-    }
-
-    proptest! {
-        #[test]
-        fn recover_zlib(literals: Vec<u8>,offsets: Vec<u32>,lens: Vec<u32>) {
-            let mut scratch =  Scratch {
-                encoded: Vec::with_capacity(1234),
-                literals,
-                offsets,
-                lens,
-            };
-            let mut output = Vec::new();
-            let coder = Coder::zlib(3);
-            let encoded_len = coder.encode(&mut output, &mut scratch)?;
-            assert_eq!(encoded_len,output.len());
-
-            let mut scratch2 =  Scratch {
-                encoded: Vec::with_capacity(1234),
-                literals: Vec::with_capacity(1234),
-                offsets: Vec::with_capacity(1234),
-                lens: Vec::with_capacity(1234),
-            };
-
-            coder.decode(&output[..],&mut scratch2)?;
+            coder.decode(Bytes::from(output),&mut scratch2)?;
 
             assert_eq!(scratch.literals,scratch2.literals);
             assert_eq!(scratch.offsets,scratch2.offsets);
