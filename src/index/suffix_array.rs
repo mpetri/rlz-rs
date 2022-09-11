@@ -18,6 +18,7 @@ impl SuffixArrayRangeInclusive {
         }
     }
 
+    #[cfg(test)]
     pub(crate) fn len(&self) -> u32 {
         match self {
             SuffixArrayRangeInclusive::Empty => 0,
@@ -63,6 +64,7 @@ impl std::ops::Index<&SuffixArrayRangeInclusive> for Vec<u32> {
 pub const MAX_LENGTH: usize = std::i32::MAX as usize;
 
 /// Wrapper of the underlying suffix array construction algorithm.
+#[tracing::instrument]
 pub fn saca(s: &[u8], sa: &mut [u32]) {
     assert!(s.len() <= MAX_LENGTH);
     divsufsort(s, as_signed_integer_slice(&mut sa[..]));
@@ -82,6 +84,7 @@ pub struct SuffixArray {
     bkt: Vec<SuffixArrayRangeInclusive>,
 }
 
+#[tracing::instrument]
 fn compute_buckets(text: &[u8]) -> Vec<SuffixArrayRangeInclusive> {
     let num_uniq_chars: usize = u8::MAX as usize + 1;
     let num_zero_grams = 1;
@@ -156,6 +159,7 @@ pub(crate) enum SuffixArrayMatch {
     },
 }
 
+#[tracing::instrument]
 fn get_bucket(bkt: &[SuffixArrayRangeInclusive], pat: &[u8]) -> SuffixArrayMatch {
     let num_uniq_chars: usize = u8::MAX as usize + 1;
     let num_zero_grams = 1;
@@ -195,6 +199,7 @@ fn get_bucket(bkt: &[SuffixArrayRangeInclusive], pat: &[u8]) -> SuffixArrayMatch
 }
 
 impl SuffixArray {
+    #[tracing::instrument]
     pub fn new(text: &[u8]) -> Self {
         let mut sa = vec![0; text.len()];
         saca(text, &mut sa[..]);
@@ -208,6 +213,7 @@ impl SuffixArray {
         get_bucket(&self.bkt, pat)
     }
 
+    #[cfg(test)]
     pub(crate) fn start_range(&self) -> SuffixArrayRangeInclusive {
         self.bkt[0]
     }

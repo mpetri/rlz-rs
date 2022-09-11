@@ -2,13 +2,13 @@ use bytes::{Buf, BufMut};
 
 use crate::{
     coder, config, dict,
-    factor::{self, FactorType},
+    factor::{self},
     index, scratch, RlzError,
 };
 
 pub struct Encoder {
-    index: index::Index,
-    coder: coder::Coder,
+    pub(crate) index: index::Index,
+    pub(crate) coder: coder::Coder,
     scratch: scratch::ScratchSpace,
 }
 
@@ -17,6 +17,7 @@ impl Encoder {
         EncoderBuilder::default()
     }
 
+    #[tracing::instrument(skip_all)]
     pub fn encode(&self, input: impl Buf, output: impl BufMut) -> Result<usize, RlzError> {
         let mut scratch = self.scratch.get();
         scratch.clear();
@@ -50,8 +51,9 @@ impl EncoderBuilder {
         self
     }
 
+    #[tracing::instrument(skip_all)]
     pub fn build(self, dict: dict::Dictionary) -> Encoder {
-        let index = index::Index::from_dict(dict.to_vec(), &self.compression_config);
+        let index = index::Index::from_dict(dict, &self.compression_config);
         Encoder {
             index,
             coder: self.compression_config.factor_compression,

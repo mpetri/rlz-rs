@@ -2,14 +2,24 @@ use bytes::Buf;
 
 use crate::{coder, config, dict::Dictionary, factor::FactorType, scratch, RlzError};
 
-pub struct Decoder<'index> {
-    dict: &'index Dictionary,
+pub struct Decoder {
+    dict: Dictionary,
     scratch: scratch::ScratchSpace,
     config: config::Compression,
     coder: coder::Coder,
 }
 
-impl<'index> Decoder<'index> {
+impl Decoder {
+    pub fn from_encoder(encoder: &crate::Encoder) -> Self {
+        Self {
+            dict: encoder.index.dict.clone(),
+            config: encoder.index.config.clone(),
+            coder: encoder.coder.clone(),
+            scratch: scratch::ScratchSpace::default(),
+        }
+    }
+
+    #[tracing::instrument(skip_all)]
     pub fn decode(
         &self,
         input: bytes::Bytes,

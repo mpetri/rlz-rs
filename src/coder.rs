@@ -1,4 +1,4 @@
-use bytes::{BufMut, Bytes, BytesMut};
+use bytes::{BufMut, Bytes};
 
 use crate::{factor::FactorType, scratch::Scratch, RlzError};
 
@@ -16,7 +16,8 @@ impl ZstdCompressor {
 impl ZstdCompressor {
     pub fn compress(&self, output: &mut [u8], input: &[u8]) -> Result<usize, RlzError> {
         let num_compressed_bytes = if !input.is_empty() {
-            zstd::bulk::compress_to_buffer(input, output, self.level)?
+            zstd::bulk::compress_to_buffer(input, output, self.level)
+                .map_err(|e| RlzError::EncodingError { source: e })?
         } else {
             0
         };
@@ -25,7 +26,8 @@ impl ZstdCompressor {
 
     pub fn decompress(&self, input: &[u8], output: &mut [u8]) -> Result<usize, RlzError> {
         if !input.is_empty() {
-            let num_decompressed_bytes = zstd::bulk::decompress_to_buffer(input, output)?;
+            let num_decompressed_bytes = zstd::bulk::decompress_to_buffer(input, output)
+                .map_err(|e| RlzError::DecodingError { source: e })?;
             return Ok(num_decompressed_bytes);
         }
         Ok(0)
@@ -54,6 +56,7 @@ impl Default for Coder {
 }
 
 impl Coder {
+    #[tracing::instrument(skip_all)]
     pub(crate) fn encode(
         &self,
         mut output: impl BufMut,
@@ -85,6 +88,7 @@ impl Coder {
         Ok(encode_bytes)
     }
 
+    #[tracing::instrument(skip_all)]
     pub(crate) fn decode(&self, mut input: Bytes, scratch: &mut Scratch) -> Result<(), RlzError> {
         let num_literal_bytes = crate::vbyte::decode(&mut input) as usize;
         let num_offset_bytes = crate::vbyte::decode(&mut input) as usize;
@@ -96,7 +100,7 @@ impl Coder {
         let offset_bytes = input.split_to(num_offset_bytes as usize);
         let len_bytes = input;
 
-        // perform the decoding
+        // (2) perform the decoding
         let decoded = self
             .compressor
             .decompress(&literal_bytes, &mut scratch.literals)?;
@@ -113,11 +117,12 @@ impl Coder {
         Ok(())
     }
 
+    #[tracing::instrument(skip_all)]
     pub(crate) fn store_factor(&self, scratch: &mut Scratch, factor: FactorType) {
         match factor {
             FactorType::Literal(literal) => {
                 scratch.lens.put_u32(literal.len() as u32);
-                scratch.literals.copy_from_slice(&literal);
+                scratch.literals.put_slice(&literal);
             }
             FactorType::Copy { offset, len } => {
                 scratch.offsets.put_u32(offset);
@@ -130,6 +135,7 @@ impl Coder {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use bytes::BytesMut;
     use proptest::prelude::*;
 
     proptest! {

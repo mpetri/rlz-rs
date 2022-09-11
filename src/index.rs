@@ -1,5 +1,5 @@
 use crate::factor::FactorType;
-use crate::{config, dict};
+use crate::{config, Dictionary};
 mod suffix_array;
 
 use bytes::Buf;
@@ -8,9 +8,9 @@ use suffix_array::SuffixArray;
 use self::suffix_array::{SuffixArrayMatch, SuffixArrayRangeInclusive};
 
 pub(crate) struct Index {
-    text: Vec<u8>,
+    pub(crate) dict: Dictionary,
     sa: suffix_array::SuffixArray,
-    config: config::Compression,
+    pub(crate) config: config::Compression,
 }
 
 enum IndexSearchResult {
@@ -19,10 +19,10 @@ enum IndexSearchResult {
 }
 
 impl Index {
-    pub(crate) fn from_dict(text: Vec<u8>, config: &config::Compression) -> Self {
-        let sa = SuffixArray::new(&text);
+    pub(crate) fn from_dict(dict: Dictionary, config: &config::Compression) -> Self {
+        let sa = SuffixArray::new(&dict);
         Self {
-            text,
+            dict,
             sa,
             config: config.clone(),
         }
@@ -42,9 +42,10 @@ impl Index {
         pat_sym: u8,
         offset: usize,
     ) -> SuffixArrayRangeInclusive {
-        self.sa.refine_bounds(bounds, pat_sym, offset, &self.text)
+        self.sa.refine_bounds(bounds, pat_sym, offset, &self.dict)
     }
 
+    #[tracing::instrument(skip_all)]
     fn find_longest_match(&self, pattern: &[u8]) -> IndexSearchResult {
         let (mut bounds, mut num_matched) = match self.sa.start_range_from_pattern(pattern) {
             SuffixArrayMatch::NoMatch => return IndexSearchResult::NoMatch,
@@ -68,11 +69,11 @@ impl Index {
             SuffixArrayRangeInclusive::Empty => {
                 panic!("this should never happen at this point because we have at least one match")
             }
-            SuffixArrayRangeInclusive::Range { start, end } => {
+            SuffixArrayRangeInclusive::Range { start, end: _ } => {
                 // we match! take it as far as possible
                 let text_pos = self.sa[start as usize] as usize;
                 while let Some(next_sym) = pattern.get(num_matched) {
-                    if let Some(text_sym) = self.text.get(text_pos + num_matched) {
+                    if let Some(text_sym) = self.dict.get(text_pos + num_matched) {
                         if next_sym == text_sym {
                             num_matched += 1;
                         } else {
@@ -134,7 +135,6 @@ impl<'encoder> Iterator for FactorIterator<'encoder> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use proptest::prelude::*;
 
     #[test]
     fn banana_factorize() {
@@ -143,7 +143,7 @@ mod tests {
             literal_threshold: 1,
             ..Default::default()
         };
-        let index = Index::from_dict(text.as_bytes().to_vec(), &config);
+        let index = Index::from_dict(Dictionary::from(text.as_bytes()), &config);
 
         let input = "bac$anana";
 
