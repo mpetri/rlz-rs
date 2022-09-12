@@ -1,46 +1,34 @@
-use std::ops::Deref;
-
 use bytes::Bytes;
+use serde::{Deserialize, Serialize};
+use std::ops::Deref;
 mod reservoir;
+mod stratified;
 
-use reservoir::Reservoir;
+use reservoir::ReservoirDictionaryBuilder;
+use stratified::StratifiedReservoirDictionaryBuilder;
 
-#[derive(Clone)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct Dictionary(Bytes);
 
 impl Dictionary {
-    pub fn builder(dict_mib: usize, sample_size: usize, reservoir_mib: usize) -> DictionaryBuilder {
-        DictionaryBuilder::new(dict_mib, sample_size, reservoir_mib)
+    pub fn reservoir_builder(
+        dict_mib: usize,
+        sample_size: usize,
+        reservoir_mib: usize,
+    ) -> ReservoirDictionaryBuilder {
+        ReservoirDictionaryBuilder::empty(dict_mib, sample_size, reservoir_mib)
+    }
+
+    pub fn stratified_reservoir_builder(
+        dict_mib: usize,
+        sample_size: usize,
+        items_per_bucket: usize,
+    ) -> StratifiedReservoirDictionaryBuilder {
+        StratifiedReservoirDictionaryBuilder::empty(dict_mib, sample_size, items_per_bucket)
     }
 
     pub fn from(mut bytes: impl bytes::Buf) -> Self {
         Self(bytes.copy_to_bytes(bytes.remaining()))
-    }
-}
-
-#[derive(Default)]
-pub struct DictionaryBuilder {
-    dict_size: usize,
-    reservoir: Reservoir,
-}
-
-impl DictionaryBuilder {
-    pub fn new(dict_mib: usize, sample_size: usize, reservoir_mib: usize) -> Self {
-        let reservoir_size = (reservoir_mib * 1024 * 1024) / sample_size;
-        Self {
-            dict_size: dict_mib * 1024 * 1024,
-            reservoir: Reservoir::empty(sample_size, reservoir_size),
-        }
-    }
-
-    #[tracing::instrument(skip_all)]
-    pub fn sample(&mut self, bytes: &[u8]) {
-        self.reservoir.maybe_add(bytes);
-    }
-
-    #[tracing::instrument(skip_all)]
-    pub fn finish(self) -> Dictionary {
-        Dictionary(self.reservoir.freeze(self.dict_size))
     }
 }
 

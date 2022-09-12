@@ -1,10 +1,10 @@
 // mostly taken from the suffix_array crate but with modifications
 
+use serde::{Deserialize, Serialize};
 use std::{ops::Deref, slice::from_raw_parts_mut};
 
 use cdivsufsort::sort_in_place as divsufsort;
-
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub(crate) enum SuffixArrayRangeInclusive {
     Empty,
     Range { start: u32, end: u32 },
@@ -78,7 +78,7 @@ fn as_signed_integer_slice(sa: &mut [u32]) -> &mut [i32] {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct SuffixArray {
     sa: Vec<u32>,
     bkt: Vec<SuffixArrayRangeInclusive>,

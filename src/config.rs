@@ -1,9 +1,9 @@
-use crate::{coder, factor};
+use crate::coder;
+use serde::{Deserialize, Serialize};
 
-#[derive(Clone, PartialEq, Eq, Debug)]
+#[derive(Clone, PartialEq, Eq, Debug, Deserialize, Serialize)]
 pub struct Compression {
     pub literal_threshold: u32,
-    pub local_search: factor::LocalSearch,
     pub factor_compression: coder::Coder,
 }
 
@@ -11,7 +11,6 @@ impl Compression {
     fn new() -> Compression {
         Compression {
             literal_threshold: 3,
-            local_search: factor::LocalSearch::default(),
             factor_compression: coder::Coder::default(),
         }
     }

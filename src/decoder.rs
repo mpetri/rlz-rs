@@ -1,20 +1,26 @@
 use bytes::Buf;
 
-use crate::{coder, config, dict::Dictionary, factor::FactorType, scratch, RlzError};
+use crate::{
+    coder, config,
+    dict::{self},
+    factor::FactorType,
+    scratch, RlzError,
+};
+use serde::{Deserialize, Serialize};
 
+#[derive(Serialize, Deserialize)]
 pub struct Decoder {
-    dict: Dictionary,
+    #[serde(skip)]
     scratch: scratch::ScratchSpace,
     config: config::Compression,
     coder: coder::Coder,
 }
 
 impl Decoder {
-    pub fn from_encoder(encoder: &crate::Encoder) -> Self {
+    pub fn from_config(config: &config::Compression) -> Self {
         Self {
-            dict: encoder.index.dict.clone(),
-            config: encoder.index.config.clone(),
-            coder: encoder.coder.clone(),
+            config: config.clone(),
+            coder: config.factor_compression.clone(),
             scratch: scratch::ScratchSpace::default(),
         }
     }
@@ -22,7 +28,8 @@ impl Decoder {
     #[tracing::instrument(skip_all)]
     pub fn decode(
         &self,
-        input: bytes::Bytes,
+        dict: &dict::Dictionary,
+        input: &[u8],
         mut output: impl std::io::Write,
     ) -> Result<usize, RlzError> {
         let mut scratch = self.scratch.get();
@@ -37,7 +44,7 @@ impl Decoder {
                 }
                 FactorType::Copy { offset, len } => {
                     let offset = offset as usize;
-                    let dict_slice = &self.dict[offset..offset + len as usize];
+                    let dict_slice = &dict[offset..offset + len as usize];
                     output.write_all(dict_slice)?;
                 }
             }

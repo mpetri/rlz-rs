@@ -1,8 +1,9 @@
-use bytes::{BufMut, Bytes};
+use bytes::{Buf, BufMut};
+use serde::{Deserialize, Serialize};
 
 use crate::{factor::FactorType, scratch::Scratch, RlzError};
 
-#[derive(Copy, Clone, PartialEq, Eq, Debug)]
+#[derive(Copy, Clone, PartialEq, Eq, Debug, Deserialize, Serialize)]
 pub struct ZstdCompressor {
     level: i32,
 }
@@ -25,7 +26,7 @@ impl ZstdCompressor {
     }
 
     pub fn decompress(&self, input: &[u8], output: &mut [u8]) -> Result<usize, RlzError> {
-        if !input.is_empty() {
+        if input.has_remaining() {
             let num_decompressed_bytes = zstd::bulk::decompress_to_buffer(input, output)
                 .map_err(|e| RlzError::DecodingError { source: e })?;
             return Ok(num_decompressed_bytes);
@@ -34,7 +35,7 @@ impl ZstdCompressor {
     }
 }
 
-#[derive(Clone, PartialEq, Eq, Debug)]
+#[derive(Clone, PartialEq, Eq, Debug, Deserialize, Serialize)]
 pub struct Coder {
     compressor: ZstdCompressor,
 }
@@ -89,29 +90,28 @@ impl Coder {
     }
 
     #[tracing::instrument(skip_all)]
-    pub(crate) fn decode(&self, mut input: Bytes, scratch: &mut Scratch) -> Result<(), RlzError> {
+    pub(crate) fn decode(&self, mut input: &[u8], scratch: &mut Scratch) -> Result<(), RlzError> {
         let num_literal_bytes = crate::vbyte::decode(&mut input) as usize;
         let num_offset_bytes = crate::vbyte::decode(&mut input) as usize;
 
         // (1) ensure we have enough space
-        scratch.reserve_output(input.len());
+        scratch.reserve_output(input.remaining());
 
-        let literal_bytes = input.split_to(num_literal_bytes as usize);
-        let offset_bytes = input.split_to(num_offset_bytes as usize);
-        let len_bytes = input;
+        let (literal_bytes, remainder) = input.split_at(num_literal_bytes as usize);
+        let (offset_bytes, len_bytes) = remainder.split_at(num_offset_bytes as usize);
 
         // (2) perform the decoding
         let decoded = self
             .compressor
-            .decompress(&literal_bytes, &mut scratch.literals)?;
+            .decompress(literal_bytes, &mut scratch.literals)?;
         scratch.literals.truncate(decoded);
 
         let decoded = self
             .compressor
-            .decompress(&offset_bytes, &mut scratch.offsets)?;
+            .decompress(offset_bytes, &mut scratch.offsets)?;
         scratch.offsets.truncate(decoded);
 
-        let decoded = self.compressor.decompress(&len_bytes, &mut scratch.lens)?;
+        let decoded = self.compressor.decompress(len_bytes, &mut scratch.lens)?;
         scratch.lens.truncate(decoded);
 
         Ok(())
@@ -176,7 +176,7 @@ mod tests {
                 lens: BytesMut::with_capacity(1024 * 1024),
             };
 
-            coder.decode(Bytes::from(output),&mut scratch2)?;
+            coder.decode(&output,&mut scratch2)?;
 
             assert_eq!(scratch.literals,scratch2.literals);
             assert_eq!(scratch.offsets,scratch2.offsets);

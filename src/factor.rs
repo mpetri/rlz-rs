@@ -1,17 +1,5 @@
 use bytes::Bytes;
 
-#[derive(Copy, Clone, PartialEq, Eq, Debug)]
-pub enum LocalSearch {
-    None,
-    Window(usize),
-}
-
-impl Default for LocalSearch {
-    fn default() -> LocalSearch {
-        LocalSearch::None
-    }
-}
-
 #[derive(Clone, PartialEq, Eq, Debug)]
 
 pub(crate) enum FactorType {

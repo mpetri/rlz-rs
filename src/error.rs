@@ -10,4 +10,8 @@ pub enum RlzError {
     IOError(#[from] std::io::Error),
     #[error("Unknown rlz error")]
     Unknown,
+    #[error("No encoder available. Build it with enable_encode()")]
+    NoEncoderAvailable,
+    #[error("Bincode serialization Error")]
+    SerializeError(#[from] bincode::Error),
 }

@@ -3,16 +3,19 @@ use rand::seq::SliceRandom;
 use rand::Rng;
 
 #[derive(Default)]
-pub(crate) struct Reservoir {
+pub struct ReservoirDictionaryBuilder {
+    dict_size: usize,
     sample_size: usize,
     itr: usize,
     samples: Vec<Option<Bytes>>,
 }
 
-impl Reservoir {
+impl ReservoirDictionaryBuilder {
     #[tracing::instrument(skip_all)]
-    pub(crate) fn empty(sample_size: usize, reservoir_size: usize) -> Self {
+    pub(crate) fn empty(dict_mib: usize, sample_size: usize, reservoir_mib: usize) -> Self {
+        let reservoir_size = (reservoir_mib * 1024 * 1024) / sample_size;
         Self {
+            dict_size: dict_mib * 1024 * 1024,
             sample_size,
             itr: reservoir_size,
             samples: vec![None; reservoir_size],
@@ -34,7 +37,13 @@ impl Reservoir {
     }
 
     #[tracing::instrument(skip_all)]
-    pub(crate) fn maybe_add(&mut self, new_bytes: &[u8]) {
+    pub fn finish(self) -> super::Dictionary {
+        let dict_size = self.dict_size;
+        super::Dictionary(self.freeze(dict_size))
+    }
+
+    #[tracing::instrument(skip_all)]
+    pub fn sample(&mut self, new_bytes: &[u8]) {
         let mut rng = rand::thread_rng();
         for sample in new_bytes.chunks(self.sample_size) {
             let random_number = rng.gen_range(0..self.itr);
