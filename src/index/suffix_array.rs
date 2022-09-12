@@ -73,7 +73,7 @@ pub fn saca(s: &[u8], sa: &mut [u32]) {
 fn as_signed_integer_slice(sa: &mut [u32]) -> &mut [i32] {
     unsafe {
         let len = sa.len();
-        let data = sa.as_mut_ptr() as *mut i32;
+        let data = sa.as_mut_ptr().cast::<i32>();
         from_raw_parts_mut(data, len)
     }
 }

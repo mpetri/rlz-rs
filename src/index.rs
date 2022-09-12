@@ -61,7 +61,7 @@ impl Index {
         while let Some(next_sym) = pattern.get(num_matched) {
             match self.refine_bounds(dict, bounds, *next_sym, num_matched) {
                 SuffixArrayRangeInclusive::Empty => break,
-                other => {
+                other @ SuffixArrayRangeInclusive::Range { .. } => {
                     num_matched += 1;
                     bounds = other;
                     if other.is_singleton() {

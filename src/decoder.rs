@@ -4,12 +4,12 @@ use crate::{
     coder, config,
     dict::{self},
     factor::FactorType,
-    scratch, RlzError,
+    scratch, Error,
 };
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize)]
-pub struct Decoder {
+pub(crate) struct Decoder {
     #[serde(skip)]
     scratch: scratch::ScratchSpace,
     config: config::Compression,
@@ -17,7 +17,7 @@ pub struct Decoder {
 }
 
 impl Decoder {
-    pub fn from_config(config: &config::Compression) -> Self {
+    pub(crate) fn from_config(config: &config::Compression) -> Self {
         Self {
             config: config.clone(),
             coder: config.factor_compression.clone(),
@@ -26,12 +26,12 @@ impl Decoder {
     }
 
     #[tracing::instrument(skip_all)]
-    pub fn decode(
+    pub(crate) fn decode(
         &self,
         dict: &dict::Dictionary,
         input: &[u8],
         mut output: impl std::io::Write,
-    ) -> Result<usize, RlzError> {
+    ) -> Result<usize, Error> {
         let mut scratch = self.scratch.get();
         scratch.clear();
 

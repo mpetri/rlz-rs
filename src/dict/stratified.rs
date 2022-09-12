@@ -1,5 +1,4 @@
 use bytes::{BufMut, Bytes, BytesMut};
-use rand::seq::SliceRandom;
 use rand::Rng;
 use std::collections::HashMap;
 use std::hash::Hasher;

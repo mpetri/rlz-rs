@@ -74,6 +74,6 @@ impl ScratchSpace {
     }
 
     pub(crate) fn release(&self, scratch: Scratch) {
-        self.available.lock().push(scratch)
+        self.available.lock().push(scratch);
     }
 }

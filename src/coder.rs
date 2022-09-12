@@ -1,7 +1,7 @@
 use bytes::{Buf, BufMut};
 use serde::{Deserialize, Serialize};
 
-use crate::{factor::FactorType, scratch::Scratch, RlzError};
+use crate::{factor::FactorType, scratch::Scratch, Error};
 
 #[derive(Copy, Clone, PartialEq, Eq, Debug, Deserialize, Serialize)]
 pub struct ZstdCompressor {
@@ -15,20 +15,20 @@ impl ZstdCompressor {
 }
 
 impl ZstdCompressor {
-    pub fn compress(&self, output: &mut [u8], input: &[u8]) -> Result<usize, RlzError> {
-        let num_compressed_bytes = if !input.is_empty() {
-            zstd::bulk::compress_to_buffer(input, output, self.level)
-                .map_err(|e| RlzError::EncodingError { source: e })?
-        } else {
+    pub fn compress(&self, output: &mut [u8], input: &[u8]) -> Result<usize, Error> {
+        let num_compressed_bytes = if input.is_empty() {
             0
+        } else {
+            zstd::bulk::compress_to_buffer(input, output, self.level)
+                .map_err(|e| Error::EncodingError { source: e })?
         };
         Ok(num_compressed_bytes)
     }
 
-    pub fn decompress(&self, input: &[u8], output: &mut [u8]) -> Result<usize, RlzError> {
+    pub fn decompress(&self, input: &[u8], output: &mut [u8]) -> Result<usize, Error> {
         if input.has_remaining() {
             let num_decompressed_bytes = zstd::bulk::decompress_to_buffer(input, output)
-                .map_err(|e| RlzError::DecodingError { source: e })?;
+                .map_err(|e| Error::DecodingError { source: e })?;
             return Ok(num_decompressed_bytes);
         }
         Ok(0)
@@ -62,7 +62,7 @@ impl Coder {
         &self,
         mut output: impl BufMut,
         scratch: &mut Scratch,
-    ) -> Result<usize, RlzError> {
+    ) -> Result<usize, Error> {
         // (1) ensure we have enough space
         let max_expected = scratch.literals.len() + scratch.offsets.len() + scratch.lens.len();
         scratch.reserve_encoded(max_expected);
@@ -90,7 +90,7 @@ impl Coder {
     }
 
     #[tracing::instrument(skip_all)]
-    pub(crate) fn decode(&self, mut input: &[u8], scratch: &mut Scratch) -> Result<(), RlzError> {
+    pub(crate) fn decode(&self, mut input: &[u8], scratch: &mut Scratch) -> Result<(), Error> {
         let num_literal_bytes = crate::vbyte::decode(&mut input) as usize;
         let num_offset_bytes = crate::vbyte::decode(&mut input) as usize;
 
