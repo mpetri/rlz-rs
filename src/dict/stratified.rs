@@ -5,6 +5,8 @@ use std::hash::Hasher;
 
 /// stratified reservoir based dictionary construction
 #[derive(Default)]
+#[allow(clippy::module_name_repetitions)]
+
 pub struct StratifiedReservoirDictionaryBuilder {
     dict_size: usize,
     sample_size: usize,

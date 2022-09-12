@@ -57,7 +57,7 @@ This code implements the RLZ compressor, as described in:
 ```
 
 
-# What is RLZ (taken from the paper)
+# What is RLZ (taken from {DBLP:conf/www/LiaoPMW16})
 
 The Relative Lempel-Ziv (RLZ) scheme is a hybrid of several phrase-based compression mechanisms. Encoding is based on a fixed-text dictionary, with all substrings within the dictionary available for use as factors, in the style of LZ77. But the dictionary is constructed in a semi-static manner, and hence needs to be representative of the entire text being coded if compression effectiveness is not to be compromised. Furthermore, because
 RLZ is intended for large web-based archives when constructing the dictionary, it is infeasible to have the whole input text in memory.

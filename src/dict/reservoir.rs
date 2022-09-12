@@ -3,7 +3,10 @@ use rand::seq::SliceRandom;
 use rand::Rng;
 
 /// reservoir based dictionary construction
+///
 #[derive(Default)]
+#[allow(clippy::module_name_repetitions)]
+
 pub struct ReservoirDictionaryBuilder {
     dict_size: usize,
     sample_size: usize,

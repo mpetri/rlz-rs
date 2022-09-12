@@ -77,9 +77,9 @@ impl Index {
             }
             SuffixArrayRangeInclusive::Range { start, end: _ } => {
                 // we match! take it as far as possible
-                let text_pos = self.sa[start as usize] as usize;
+                let text_pos = self.sa[start as usize];
                 while let Some(next_sym) = pattern.get(num_matched) {
-                    if let Some(text_sym) = dict.get(text_pos + num_matched) {
+                    if let Some(text_sym) = dict.get(text_pos as usize + num_matched) {
                         if next_sym == text_sym {
                             num_matched += 1;
                         } else {
@@ -89,7 +89,7 @@ impl Index {
                         break;
                     }
                 }
-                text_pos as u32
+                text_pos
             }
         };
         IndexSearchResult::Match {
