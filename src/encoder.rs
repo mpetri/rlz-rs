@@ -12,7 +12,7 @@ impl Encoder {
     #[tracing::instrument(skip_all)]
     pub(crate) fn build(
         dict: &dict::Dictionary,
-        compression_config: &config::Compression,
+        compression_config: &config::Configuration,
     ) -> Encoder {
         let index = index::Index::from_dict(dict, compression_config);
         Encoder {

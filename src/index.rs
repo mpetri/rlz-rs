@@ -11,7 +11,7 @@ use serde::{Deserialize, Serialize};
 #[derive(Serialize, Deserialize)]
 pub(crate) struct Index {
     sa: suffix_array::SuffixArray,
-    pub(crate) config: config::Compression,
+    pub(crate) config: config::Configuration,
 }
 
 enum IndexSearchResult {
@@ -20,7 +20,7 @@ enum IndexSearchResult {
 }
 
 impl Index {
-    pub(crate) fn from_dict(dict: &Dictionary, config: &config::Compression) -> Self {
+    pub(crate) fn from_dict(dict: &Dictionary, config: &config::Configuration) -> Self {
         let sa = SuffixArray::new(dict);
         Self {
             sa,
@@ -103,7 +103,7 @@ pub(crate) struct FactorIterator<'dict, 'encoder> {
     dict: &'dict dict::Dictionary,
     index: &'encoder Index,
     remaining_input: bytes::Bytes,
-    config: &'encoder config::Compression,
+    config: &'encoder config::Configuration,
 }
 
 impl<'dict, 'encoder> Iterator for FactorIterator<'dict, 'encoder> {
@@ -148,7 +148,7 @@ mod tests {
     #[test]
     fn banana_factorize() {
         let text = "banana$";
-        let config = crate::Compression {
+        let config = crate::Configuration {
             literal_threshold: 1,
             ..Default::default()
         };

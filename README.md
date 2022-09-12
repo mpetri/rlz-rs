@@ -1,11 +1,11 @@
 # Relative-Lempel Ziv (RLZ) [![Crates.io][crates-badge]][crates-url] [![Docs.rs][docs-badge]][docs-rs] [![MIT licensed][mit-badge]][mit-url]
 
 [crates-badge]: https://img.shields.io/crates/v/rbz.svg
-[crates-url]: https://crates.io/crates/rbz
+[crates-url]: https://crates.io/crates/rlz
 [mit-badge]: https://img.shields.io/badge/license-MIT-blue.svg
 [mit-url]: https://opensource.org/licenses/MIT
-[docs-rs]: https://docs.rs/rbz
-[docs-badge]: https://img.shields.io/docsrs/rbz/0.1.0
+[docs-rs]: https://docs.rs/rlz
+[docs-badge]: https://img.shields.io/docsrs/rlz/0.2.0
 
 A Relative-Lempel Ziv (RLZ) based LZ compressor that compresses against a large static dictionary.
 
@@ -16,8 +16,8 @@ This code implements the RLZ compressor, as described in:
   author    = {Christopher Hoobin and
                Simon J. Puglisi and
                Justin Zobel},
-  title     = {Relative Lempel-Ziv Factorization for Efficient Storage and Retrieval
-               of Web Collections},
+  title     = {Relative Lempel-Ziv Factorization for Efficient Storage 
+                and Retrieval of Web Collections},
   journal   = {Proc. {VLDB} Endow.},
   volume    = {5},
   number    = {3},
@@ -47,9 +47,12 @@ This code implements the RLZ compressor, as described in:
                Matthias Petri and
                Alistair Moffat and
                Anthony Wirth},
-  title     = {Effective Construction of Relative Lempel-Ziv Dictionaries},
-  booktitle = {Proceedings of the 25th International Conference on World Wide Web,
-               {WWW} 2016, Montreal, Canada, April 11 - 15, 2016},
+  title     = {Effective Construction of Relative Lempel-Ziv 
+               Dictionaries},
+  booktitle = {Proceedings of {WWW}},
+  pages     = {807--816},
+  publisher = {{ACM}},
+  year      = {2016},
 }
 ```
 
@@ -64,24 +67,23 @@ RLZ is intended for large web-based archives when constructing the dictionary, i
 
 ```rust
 use rlz::RlzCompressor;
+use rlz::Dictionary;
 
-let dict = Dictionary::from(b"banana");
-
+let dict = Dictionary::from(&b"banana"[..]);
 let rlz_compressor = RlzCompressor::builder().build_from_dict(dict);
 
 let mut output = Vec::new();
 
-let encoded_len = rlz_compressor.encode(&text[..],&mut output)?;
+let text = b"banana$aba";
+let encoded_len = rlz_compressor.encode(&text[..],&mut output).unwrap();
 assert_eq!(encoded_len,output.len());
 
 let mut stored_decoder = Vec::new();
-rlz_compressor.store(&mut stored_decoder)?;
-
-let loaded_decoder = RlzCompressor::load(&stored_decoder[..])?;
+rlz_compressor.store(&mut stored_decoder).unwrap();
+let loaded_decoder = RlzCompressor::load(&stored_decoder[..]).unwrap();
 
 let mut recovered = Vec::new();
-loaded_decoder.decode(&output[..],&mut recovered)?;
-
+loaded_decoder.decode(&output[..],&mut recovered).unwrap();
 assert_eq!(recovered,text);
 ```
 

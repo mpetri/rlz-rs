@@ -4,8 +4,8 @@ use std::ops::Deref;
 mod reservoir;
 mod stratified;
 
-use reservoir::ReservoirDictionaryBuilder;
-use stratified::StratifiedReservoirDictionaryBuilder;
+pub use reservoir::ReservoirDictionaryBuilder;
+pub use stratified::StratifiedReservoirDictionaryBuilder;
 
 /// Dictionary used for RLZ compression
 #[derive(Clone, Serialize, Deserialize)]

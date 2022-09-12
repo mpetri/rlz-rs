@@ -1,12 +1,46 @@
 //! Relative Lempel-Ziv compression against a fixed dictionary
-
+//! # What is RLZ (taken from the paper)
+//!
+//! The Relative Lempel-Ziv (RLZ) scheme is a hybrid of several phrase-based compression mechanisms. Encoding is based on a fixed-text dictionary, with all substrings within the dictionary available for use as factors, in the style of LZ77. But the dictionary is constructed in a semi-static manner, and hence needs to be representative of the entire text being coded if compression effectiveness is not to be compromised. Furthermore, because
+//! RLZ is intended for large web-based archives when constructing the dictionary, it is infeasible to have the whole input text in memory.
+//!
+//! # Usage
+//!
+//!
+//! ```rust
+//! use rlz::RlzCompressor;
+//! use rlz::Dictionary;
+//!
+//! let dict = Dictionary::from(&b"banana"[..]);
+//!
+//! let rlz_compressor = RlzCompressor::builder().build_from_dict(dict);
+//!
+//! let mut output = Vec::new();
+//!
+//! let text = b"banana$aba";
+//! let encoded_len = rlz_compressor.encode(&text[..],&mut output).unwrap();
+//! assert_eq!(encoded_len,output.len());
+//!
+//! let mut stored_decoder = Vec::new();
+//! rlz_compressor.store(&mut stored_decoder).unwrap();
+//!
+//! let loaded_decoder = RlzCompressor::load(&stored_decoder[..]).unwrap();
+//!
+//! let mut recovered = Vec::new();
+//! loaded_decoder.decode(&output[..],&mut recovered).unwrap();
+//!
+//! assert_eq!(recovered,text);
+//! ```
+//!
+//!
 #![warn(clippy::pedantic)]
 #![warn(missing_docs)]
 
 mod coder;
 mod config;
 mod decoder;
-mod dict;
+/// dictionary construction related items
+pub mod dict;
 mod encoder;
 mod error;
 mod factor;
@@ -16,7 +50,7 @@ mod vbyte;
 
 use bytes::{Buf, BufMut};
 
-pub use config::Compression;
+pub use config::Configuration;
 use decoder::Decoder;
 pub use dict::Dictionary;
 use encoder::Encoder;
@@ -26,7 +60,7 @@ pub use error::Error;
 /// Main RLZ compressor class
 pub struct RlzCompressor {
     dict: Dictionary,
-    config: config::Compression,
+    config: config::Configuration,
     encoder: Option<Encoder>,
     decoder: Decoder,
 }
@@ -48,7 +82,7 @@ impl RlzCompressor {
         }
     }
 
-    /// If RlzCompressor is loaded from disk we rebuild the index to enable encoding
+    /// If `RlzCompressor` is loaded from disk we rebuild the index to enable encoding
     pub fn enable_encode(&mut self) {
         if self.encoder.is_none() {
             tracing::info!("no encoder present. rebuilding...");
@@ -79,7 +113,7 @@ impl RlzCompressor {
     pub fn load(input: impl std::io::Read) -> Result<Self, Error> {
         let mut zstd_decoder = zstd::stream::read::Decoder::new(input)?;
         let dict: Dictionary = bincode::deserialize_from(&mut zstd_decoder)?;
-        let config: config::Compression = bincode::deserialize_from(&mut zstd_decoder)?;
+        let config: config::Configuration = bincode::deserialize_from(&mut zstd_decoder)?;
         let decoder: Decoder = bincode::deserialize_from(&mut zstd_decoder)?;
         Ok(Self {
             dict,
@@ -101,7 +135,7 @@ impl RlzCompressor {
 /// RLZ compressor builder
 #[derive(Default)]
 pub struct RlzBuilder {
-    config: config::Compression,
+    config: config::Configuration,
 }
 
 impl RlzBuilder {

@@ -3,6 +3,7 @@ use rand::Rng;
 use std::collections::HashMap;
 use std::hash::Hasher;
 
+/// stratified reservoir based dictionary construction
 #[derive(Default)]
 pub struct StratifiedReservoirDictionaryBuilder {
     dict_size: usize,
@@ -45,12 +46,14 @@ impl StratifiedReservoirDictionaryBuilder {
         final_dict.freeze()
     }
 
+    /// finish dictionary construction and create dictionary
     #[tracing::instrument(skip_all)]
     pub fn finish(self) -> super::Dictionary {
         let dict_size = self.dict_size;
         super::Dictionary(self.freeze(dict_size))
     }
 
+    /// sample from a slice of new bytes stratified by some identifier
     #[tracing::instrument(skip_all)]
     pub fn sample(&mut self, identifier: impl std::hash::Hash, new_bytes: &[u8]) {
         let mut hasher = metrohash::MetroHash64::new();

@@ -2,6 +2,7 @@ use bytes::{BufMut, Bytes, BytesMut};
 use rand::seq::SliceRandom;
 use rand::Rng;
 
+/// reservoir based dictionary construction
 #[derive(Default)]
 pub struct ReservoirDictionaryBuilder {
     dict_size: usize,
@@ -36,12 +37,14 @@ impl ReservoirDictionaryBuilder {
         final_dict.freeze()
     }
 
+    /// finish dictionary construction and create dictionary
     #[tracing::instrument(skip_all)]
     pub fn finish(self) -> super::Dictionary {
         let dict_size = self.dict_size;
         super::Dictionary(self.freeze(dict_size))
     }
 
+    /// sample from a slice of new bytes
     #[tracing::instrument(skip_all)]
     pub fn sample(&mut self, new_bytes: &[u8]) {
         let mut rng = rand::thread_rng();

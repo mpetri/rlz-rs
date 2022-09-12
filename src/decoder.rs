@@ -12,12 +12,12 @@ use serde::{Deserialize, Serialize};
 pub(crate) struct Decoder {
     #[serde(skip)]
     scratch: scratch::ScratchSpace,
-    config: config::Compression,
+    config: config::Configuration,
     coder: coder::Coder,
 }
 
 impl Decoder {
-    pub(crate) fn from_config(config: &config::Compression) -> Self {
+    pub(crate) fn from_config(config: &config::Configuration) -> Self {
         Self {
             config: config.clone(),
             coder: config.factor_compression.clone(),
@@ -56,11 +56,14 @@ impl Decoder {
 
 struct EncodedFactorIterator<'scratch, 'decoder> {
     scratch: &'scratch mut scratch::Scratch,
-    config: &'decoder config::Compression,
+    config: &'decoder config::Configuration,
 }
 
 impl<'scratch, 'decoder> EncodedFactorIterator<'scratch, 'decoder> {
-    fn new(scratch: &'scratch mut scratch::Scratch, config: &'decoder config::Compression) -> Self {
+    fn new(
+        scratch: &'scratch mut scratch::Scratch,
+        config: &'decoder config::Configuration,
+    ) -> Self {
         Self { scratch, config }
     }
 }
