@@ -228,7 +228,7 @@ impl SuffixArray {
     ) -> SuffixArrayRangeInclusive {
         let (mut new_left, mut new_right) = match init_range {
             SuffixArrayRangeInclusive::Empty => return init_range,
-            SuffixArrayRangeInclusive::Range { start, end: _ } => (start, start),
+            SuffixArrayRangeInclusive::Range { start, end } => (start, start),
         };
         let sa_range = &self.sa[&init_range];
 
@@ -240,6 +240,14 @@ impl SuffixArray {
             }
             true
         }) as u32;
+
+        // if let Some(probe) = self.sa.get(new_left as usize) {
+        //     if let Some(text_sym) = text.get(*probe as usize + offset) {
+        //         if *text_sym != pat_sym {
+        //             return SuffixArrayRangeInclusive::Empty;
+        //         }
+        //     }
+        // }
 
         // refine right bound
         new_right += sa_range.partition_point(|&probe| {

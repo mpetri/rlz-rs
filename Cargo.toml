@@ -12,6 +12,12 @@ description = "Relative Lempel-Ziv (RLZ): a LZ based compressor against a large 
 
 [dev-dependencies]
 proptest = "1.0.0"
+criterion = { version = "0.4", default_features = false }
+
+
+[[bench]]
+name = "encode"
+harness = false
 
 [dependencies]
 bincode = "1.3.3"
